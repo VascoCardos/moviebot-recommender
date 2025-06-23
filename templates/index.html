@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MovieBot - Recomendador Inteligente de Filmes</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .typing-animation {
+            border-right: 2px solid #3b82f6;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { border-color: transparent; }
+            51%, 100% { border-color: #3b82f6; }
+        }
+        
+        .recommendation-card {
+            transition: all 0.3s ease;
+        }
+        
+        .recommendation-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .chat-bubble {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Estilos para o conteúdo gerado pelo LLM */
+        .prose strong {
+            font-weight: 600; /* Tailwind semibold */
+        }
+        .prose ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .prose li {
+            margin-bottom: 0.75rem; /* mb-3 */
+        }
+        .prose h3, .prose h4 { /* Para títulos como "Filmes que vão mexer..." */
+            font-size: 1.125rem; /* text-lg */
+            font-weight: 600; /* semibold */
+            margin-bottom: 0.5rem; /* mb-2 */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-center">
+                <i class="fas fa-film text-3xl mr-3"></i>
+                <h1 class="text-3xl font-bold">MovieBot</h1>
+            </div>
+            <p class="text-center mt-2 text-blue-100">Recomendador Inteligente de Filmes com IA</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- User Type Selection -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-user-circle mr-2 text-blue-600"></i>
+                Tipo de Utilizador
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label class="cursor-pointer">
+                    <input type="radio" name="user_type" value="casual" class="sr-only peer" checked>
+                    <div class="border-2 border-gray-200 rounded-lg p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-blue-300 transition-colors">
+                        <i class="fas fa-popcorn text-2xl text-blue-600 mb-2"></i>
+                        <h3 class="font-semibold">Casual</h3>
+                        <p class="text-sm text-gray-600">Filmes populares e acessíveis</p>
+                    </div>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="user_type" value="critic" class="sr-only peer">
+                    <div class="border-2 border-gray-200 rounded-lg p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-blue-300 transition-colors">
+                        <i class="fas fa-star text-2xl text-blue-600 mb-2"></i>
+                        <h3 class="font-semibold">Crítico</h3>
+                        <p class="text-sm text-gray-600">Mérito artístico e técnico</p>
+                    </div>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="user_type" value="enthusiast" class="sr-only peer">
+                    <div class="border-2 border-gray-200 rounded-lg p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-blue-300 transition-colors">
+                        <i class="fas fa-heart text-2xl text-blue-600 mb-2"></i>
+                        <h3 class="font-semibold">Entusiasta</h3>
+                        <p class="text-sm text-gray-600">Exploração profunda de géneros</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- Query Input -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-search mr-2 text-blue-600"></i>
+                Faça a sua pergunta
+            </h2>
+            <form id="recommendation-form" class="space-y-4">
+                <div class="relative">
+                    <textarea 
+                        id="query-input"
+                        placeholder="Ex: Filmes parecidos com Inception? Sugere thrillers psicológicos dos anos 90..."
+                        class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        rows="3"
+                    ></textarea>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div class="text-sm text-gray-500">
+                        <i class="fas fa-lightbulb mr-1"></i>
+                        Dica: Seja específico sobre géneros, décadas ou filmes que gostou
+                    </div>
+                    <button 
+                        type="submit"
+                        id="recommend-button"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors flex items-center"
+                    >
+                        <i class="fas fa-magic mr-2"></i>
+                        Recomendar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Quick Examples -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-3 flex items-center">
+                <i class="fas fa-bolt mr-2 text-yellow-500"></i>
+                Exemplos Rápidos
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button class="example-btn text-left p-3 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                    "Filmes parecidos com Inception?"
+                </button>
+                <button class="example-btn text-left p-3 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                    "Sugere thrillers psicológicos dos anos 90"
+                </button>
+                <button class="example-btn text-left p-3 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                    "Comédias românticas com enredo original"
+                </button>
+                <button class="example-btn text-left p-3 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                    "Filmes de ficção científica clássicos"
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex items-center justify-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                <span class="text-gray-600">MovieBot está a pensar nas melhores recomendações...</span>
+            </div>
+        </div>
+        
+        <!-- Error Message -->
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <strong class="font-bold">Erro!</strong>
+            <span class="block sm:inline" id="error-text"></span>
+        </div>
+
+
+        <!-- Recommendations -->
+        <div id="recommendations" class="hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-list-stars mr-2 text-green-600"></i>
+                    Recomendações Personalizadas
+                </h2>
+                <div id="recommendations-content" class="prose max-w-none">
+                    <!-- Recommendations will be inserted here -->
+                </div>
+                <div class="mt-6 pt-4 border-t border-gray-200">
+                    <button 
+                        id="new-search-btn"
+                        class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                        <i class="fas fa-redo mr-2"></i>
+                        Nova Pesquisa
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2024 MovieBot - Powered by LLM Technology</p>
+            <p class="text-gray-400 text-sm mt-1">Recomendações inteligentes baseadas em linguagem natural</p>
+        </div>
+    </footer>
+
+    <script>
+        // Form submission handler
+        document.getElementById('recommendation-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('query-input').value.trim();
+            if (!query) {
+                alert('Por favor, insira uma pergunta sobre filmes.');
+                return;
+            }
+            
+            const userType = document.querySelector('input[name="user_type"]:checked').value;
+            const recommendButton = document.getElementById('recommend-button');
+            
+            // Show loading state and disable button
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('recommendations').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            recommendButton.disabled = true;
+            recommendButton.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            try {
+                const response = await fetch('/recommend', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        user_type: userType
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Hide loading and show recommendations
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('recommendations').classList.remove('hidden');
+                    
+                    // Format and display recommendations
+                    // A resposta do LLM já deve vir formatada, mas podemos fazer ajustes
+                    let recommendationsHtml = data.recommendations
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Negrito
+                        .replace(/🎬|🎭|🚀|💕|🔥|🌟|👻|🎃|⭐|🏆|⚡|💎/g, '<span class="text-2xl mr-2">$&</span>') // Ícones
+                        .replace(/\n\n/g, '</div><div class="recommendation-card bg-gray-50 p-4 rounded-lg mb-4 border-l-4 border-blue-500">') // Cards
+                        .replace(/\n/g, '<br>'); // Novas linhas
+                    
+                    // Garante que o primeiro card seja criado se não houver \n\n no início
+                    if (!recommendationsHtml.startsWith('<div class="recommendation-card')) {
+                        recommendationsHtml = '<div class="recommendation-card bg-gray-50 p-4 rounded-lg mb-4 border-l-4 border-blue-500">' + recommendationsHtml + '</div>';
+                    }
+                    
+                    document.getElementById('recommendations-content').innerHTML = recommendationsHtml;
+                    
+                    // Scroll to recommendations
+                    document.getElementById('recommendations').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    throw new Error(data.error || 'Erro ao obter recomendações do servidor.');
+                }
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error-text').textContent = error.message;
+                document.getElementById('error-message').classList.remove('hidden');
+                console.error('Fetch error:', error);
+            } finally {
+                // Re-enable button
+                recommendButton.disabled = false;
+                recommendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+        
+        // Example buttons handler
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.getElementById('query-input').value = this.textContent.trim().replace(/"/g, '');
+                document.getElementById('query-input').focus();
+            });
+        });
+        
+        // New search button handler
+        document.getElementById('new-search-btn').addEventListener('click', function() {
+            document.getElementById('recommendations').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('query-input').value = '';
+            document.getElementById('query-input').focus();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>
